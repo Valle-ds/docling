@@ -25,7 +25,7 @@ class OcrOptions(BaseModel):
 
 class EasyOcrOptions(OcrOptions):
     kind: Literal["easyocr"] = "easyocr"
-    lang: List[str] = ["fr", "de", "es", "en"]
+    lang: List[str] = ["ru","rs_cyrillic","be","bg","uk","mn","en"]
     use_gpu: bool = True  # same default as easyocr.Reader
     model_storage_directory: Optional[str] = None
     download_enabled: bool = True  # same default as easyocr.Reader
