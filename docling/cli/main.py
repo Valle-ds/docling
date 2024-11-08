@@ -5,22 +5,31 @@ import time
 import warnings
 from enum import Enum
 from pathlib import Path
-from typing import Annotated, Iterable, List, Optional
+from typing import Annotated, Dict, Iterable, List, Optional, Type
 
 import typer
 from docling_core.utils.file import resolve_file_source
 
 from docling.backend.docling_parse_backend import DoclingParseDocumentBackend
+from docling.backend.docling_parse_v2_backend import DoclingParseV2DocumentBackend
+from docling.backend.pdf_backend import PdfDocumentBackend
 from docling.backend.pypdfium2_backend import PyPdfiumDocumentBackend
-from docling.datamodel.base_models import ConversionStatus
-from docling.datamodel.document import ConversionResult, DocumentConversionInput
+from docling.datamodel.base_models import (
+    ConversionStatus,
+    FormatToExtensions,
+    InputFormat,
+    OutputFormat,
+)
+from docling.datamodel.document import ConversionResult
 from docling.datamodel.pipeline_options import (
     EasyOcrOptions,
-    PipelineOptions,
+    OcrOptions,
+    PdfPipelineOptions,
+    TableFormerMode,
     TesseractCliOcrOptions,
     TesseractOcrOptions,
 )
-from docling.document_converter import DocumentConverter
+from docling.document_converter import DocumentConverter, FormatOption, PdfFormatOption
 
 warnings.filterwarnings(action="ignore", category=UserWarning, module="pydantic|torch")
 warnings.filterwarnings(action="ignore", category=FutureWarning, module="easyocr")
@@ -53,9 +62,10 @@ def version_callback(value: bool):
 
 
 # Define an enum for the backend options
-class Backend(str, Enum):
+class PdfBackend(str, Enum):
     PYPDFIUM2 = "pypdfium2"
-    DOCLING = "docling"
+    DLPARSE_V1 = "dlparse_v1"
+    DLPARSE_V2 = "dlparse_v2"
 
 
 # Define an enum for the ocr engines
@@ -85,30 +95,30 @@ def export_documents(
             # Export Deep Search document JSON format:
             if export_json:
                 fname = output_dir / f"{doc_filename}.json"
-                with fname.open("w") as fp:
+                with fname.open("w", encoding="utf8") as fp:
                     _log.info(f"writing JSON output to {fname}")
-                    fp.write(json.dumps(conv_res.render_as_dict()))
+                    fp.write(json.dumps(conv_res.document.export_to_dict()))
 
             # Export Text format:
             if export_txt:
                 fname = output_dir / f"{doc_filename}.txt"
-                with fname.open("w") as fp:
+                with fname.open("w", encoding="utf8") as fp:
                     _log.info(f"writing Text output to {fname}")
-                    fp.write(conv_res.render_as_text())
+                    fp.write(conv_res.document.export_to_markdown(strict_text=True))
 
             # Export Markdown format:
             if export_md:
                 fname = output_dir / f"{doc_filename}.md"
-                with fname.open("w") as fp:
+                with fname.open("w", encoding="utf8") as fp:
                     _log.info(f"writing Markdown output to {fname}")
-                    fp.write(conv_res.render_as_markdown())
+                    fp.write(conv_res.document.export_to_markdown())
 
             # Export Document Tags format:
             if export_doctags:
                 fname = output_dir / f"{doc_filename}.doctags"
-                with fname.open("w") as fp:
+                with fname.open("w", encoding="utf8") as fp:
                     _log.info(f"writing Doc Tags output to {fname}")
-                    fp.write(conv_res.render_as_doctags())
+                    fp.write(conv_res.document.export_to_document_tokens())
 
         else:
             _log.warning(f"Document {conv_res.input.file} failed to convert.")
@@ -129,44 +139,42 @@ def convert(
             help="PDF files to convert. Can be local file / directory paths or URL.",
         ),
     ],
-    export_json: Annotated[
-        bool,
-        typer.Option(
-            ..., "--json/--no-json", help="If enabled the document is exported as JSON."
-        ),
-    ] = False,
-    export_md: Annotated[
-        bool,
-        typer.Option(
-            ..., "--md/--no-md", help="If enabled the document is exported as Markdown."
-        ),
-    ] = True,
-    export_txt: Annotated[
-        bool,
-        typer.Option(
-            ..., "--txt/--no-txt", help="If enabled the document is exported as Text."
-        ),
-    ] = False,
-    export_doctags: Annotated[
-        bool,
-        typer.Option(
-            ...,
-            "--doctags/--no-doctags",
-            help="If enabled the document is exported as Doc Tags.",
-        ),
-    ] = False,
+    from_formats: List[InputFormat] = typer.Option(
+        None,
+        "--from",
+        help="Specify input formats to convert from. Defaults to all formats.",
+    ),
+    to_formats: List[OutputFormat] = typer.Option(
+        None, "--to", help="Specify output formats. Defaults to Markdown."
+    ),
     ocr: Annotated[
         bool,
         typer.Option(
             ..., help="If enabled, the bitmap content will be processed using OCR."
         ),
     ] = True,
-    backend: Annotated[
-        Backend, typer.Option(..., help="The PDF backend to use.")
-    ] = Backend.DOCLING,
     ocr_engine: Annotated[
         OcrEngine, typer.Option(..., help="The OCR engine to use.")
     ] = OcrEngine.EASYOCR,
+    pdf_backend: Annotated[
+        PdfBackend, typer.Option(..., help="The PDF backend to use.")
+    ] = PdfBackend.DLPARSE_V1,
+    table_mode: Annotated[
+        TableFormerMode,
+        typer.Option(..., help="The mode to use in the table structure model."),
+    ] = TableFormerMode.FAST,
+    artifacts_path: Annotated[
+        Optional[Path],
+        typer.Option(..., help="If provided, the location of the model artifacts."),
+    ] = None,
+    abort_on_error: Annotated[
+        bool,
+        typer.Option(
+            ...,
+            "--abort-on-error/--no-abort-on-error",
+            help="If enabled, the bitmap content will be processed using OCR.",
+        ),
+    ] = False,
     output: Annotated[
         Path, typer.Option(..., help="Output directory where results are saved.")
     ] = Path("."),
@@ -182,6 +190,9 @@ def convert(
 ):
     logging.basicConfig(level=logging.INFO)
 
+    if from_formats is None:
+        from_formats = [e for e in InputFormat]
+
     input_doc_paths: List[Path] = []
     for src in input_sources:
         source = resolve_file_source(source=src)
@@ -191,48 +202,68 @@ def convert(
             )
             raise typer.Abort()
         elif source.is_dir():
-            input_doc_paths.extend(list(source.glob("**/*.pdf")))
-            input_doc_paths.extend(list(source.glob("**/*.PDF")))
+            for fmt in from_formats:
+                for ext in FormatToExtensions[fmt]:
+                    input_doc_paths.extend(list(source.glob(f"**/*.{ext}")))
+                    input_doc_paths.extend(list(source.glob(f"**/*.{ext.upper()}")))
         else:
             input_doc_paths.append(source)
 
-    match backend:
-        case Backend.PYPDFIUM2:
-            do_cell_matching = ocr  # only do cell matching when OCR enabled
-            pdf_backend = PyPdfiumDocumentBackend
-        case Backend.DOCLING:
-            do_cell_matching = True
-            pdf_backend = DoclingParseDocumentBackend
-        case _:
-            raise RuntimeError(f"Unexpected backend type {backend}")
+    if to_formats is None:
+        to_formats = [OutputFormat.MARKDOWN]
+
+    export_json = OutputFormat.JSON in to_formats
+    export_md = OutputFormat.MARKDOWN in to_formats
+    export_txt = OutputFormat.TEXT in to_formats
+    export_doctags = OutputFormat.DOCTAGS in to_formats
 
     match ocr_engine:
         case OcrEngine.EASYOCR:
-            ocr_options = EasyOcrOptions()
+            ocr_options: OcrOptions = EasyOcrOptions()
         case OcrEngine.TESSERACT_CLI:
             ocr_options = TesseractCliOcrOptions()
         case OcrEngine.TESSERACT:
             ocr_options = TesseractOcrOptions()
         case _:
-            raise RuntimeError(f"Unexpected backend type {backend}")
+            raise RuntimeError(f"Unexpected OCR engine type {ocr_engine}")
 
-    pipeline_options = PipelineOptions(
+    pipeline_options = PdfPipelineOptions(
         do_ocr=ocr,
         ocr_options=ocr_options,
         do_table_structure=True,
     )
-    pipeline_options.table_structure_options.do_cell_matching = do_cell_matching
-    doc_converter = DocumentConverter(
-        pipeline_options=pipeline_options,
-        pdf_backend=pdf_backend,
-    )
+    pipeline_options.table_structure_options.do_cell_matching = True  # do_cell_matching
+    pipeline_options.table_structure_options.mode = table_mode
 
-    # Define input files
-    input = DocumentConversionInput.from_paths(input_doc_paths)
+    if artifacts_path is not None:
+        pipeline_options.artifacts_path = artifacts_path
+
+    match pdf_backend:
+        case PdfBackend.DLPARSE_V1:
+            backend: Type[PdfDocumentBackend] = DoclingParseDocumentBackend
+        case PdfBackend.DLPARSE_V2:
+            backend = DoclingParseV2DocumentBackend
+        case PdfBackend.PYPDFIUM2:
+            backend = PyPdfiumDocumentBackend
+        case _:
+            raise RuntimeError(f"Unexpected PDF backend type {pdf_backend}")
+
+    format_options: Dict[InputFormat, FormatOption] = {
+        InputFormat.PDF: PdfFormatOption(
+            pipeline_options=pipeline_options,
+            backend=backend,  # pdf_backend
+        )
+    }
+    doc_converter = DocumentConverter(
+        allowed_formats=from_formats,
+        format_options=format_options,
+    )
 
     start_time = time.time()
 
-    conv_results = doc_converter.convert(input)
+    conv_results = doc_converter.convert_all(
+        input_doc_paths, raises_on_error=abort_on_error
+    )
 
     output.mkdir(parents=True, exist_ok=True)
     export_documents(

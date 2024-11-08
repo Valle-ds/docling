@@ -2,13 +2,17 @@ import io
 import logging
 import tempfile
 from subprocess import DEVNULL, PIPE, Popen
-from typing import Iterable, Tuple
+from typing import Iterable, Optional, Tuple
 
 import pandas as pd
+from docling_core.types.doc import BoundingBox, CoordOrigin
 
-from docling.datamodel.base_models import BoundingBox, CoordOrigin, OcrCell, Page
+from docling.datamodel.base_models import OcrCell, Page
+from docling.datamodel.document import ConversionResult
 from docling.datamodel.pipeline_options import TesseractCliOcrOptions
+from docling.datamodel.settings import settings
 from docling.models.base_ocr_model import BaseOcrModel
+from docling.utils.profiling import TimeRecorder
 
 _log = logging.getLogger(__name__)
 
@@ -21,8 +25,8 @@ class TesseractOcrCliModel(BaseOcrModel):
 
         self.scale = 3  # multiplier for 72 dpi == 216 dpi.
 
-        self._name = None
-        self._version = None
+        self._name: Optional[str] = None
+        self._version: Optional[str] = None
 
         if self.enabled:
             try:
@@ -39,7 +43,7 @@ class TesseractOcrCliModel(BaseOcrModel):
     def _get_name_and_version(self) -> Tuple[str, str]:
 
         if self._name != None and self._version != None:
-            return self._name, self._version
+            return self._name, self._version  # type: ignore
 
         cmd = [self.options.tesseract_cmd, "--version"]
 
@@ -101,67 +105,80 @@ class TesseractOcrCliModel(BaseOcrModel):
 
         return df_filtered
 
-    def __call__(self, page_batch: Iterable[Page]) -> Iterable[Page]:
+    def __call__(
+        self, conv_res: ConversionResult, page_batch: Iterable[Page]
+    ) -> Iterable[Page]:
 
         if not self.enabled:
             yield from page_batch
             return
 
         for page in page_batch:
-            ocr_rects = self.get_ocr_rects(page)
+            assert page._backend is not None
+            if not page._backend.is_valid():
+                yield page
+            else:
+                with TimeRecorder(conv_res, "ocr"):
 
-            all_ocr_cells = []
-            for ocr_rect in ocr_rects:
-                # Skip zero area boxes
-                if ocr_rect.area() == 0:
-                    continue
-                high_res_image = page._backend.get_page_image(
-                    scale=self.scale, cropbox=ocr_rect
-                )
+                    ocr_rects = self.get_ocr_rects(page)
 
-                with tempfile.NamedTemporaryFile(suffix=".png", mode="w") as image_file:
-                    fname = image_file.name
-                    high_res_image.save(fname)
+                    all_ocr_cells = []
+                    for ocr_rect in ocr_rects:
+                        # Skip zero area boxes
+                        if ocr_rect.area() == 0:
+                            continue
+                        high_res_image = page._backend.get_page_image(
+                            scale=self.scale, cropbox=ocr_rect
+                        )
 
-                    df = self._run_tesseract(fname)
+                        with tempfile.NamedTemporaryFile(
+                            suffix=".png", mode="w"
+                        ) as image_file:
+                            fname = image_file.name
+                            high_res_image.save(fname)
 
-                # _log.info(df)
+                            df = self._run_tesseract(fname)
 
-                # Print relevant columns (bounding box and text)
-                for ix, row in df.iterrows():
-                    text = row["text"]
-                    conf = row["conf"]
+                        # _log.info(df)
 
-                    l = float(row["left"])
-                    b = float(row["top"])
-                    w = float(row["width"])
-                    h = float(row["height"])
+                        # Print relevant columns (bounding box and text)
+                        for ix, row in df.iterrows():
+                            text = row["text"]
+                            conf = row["conf"]
 
-                    t = b + h
-                    r = l + w
+                            l = float(row["left"])
+                            b = float(row["top"])
+                            w = float(row["width"])
+                            h = float(row["height"])
 
-                    cell = OcrCell(
-                        id=ix,
-                        text=text,
-                        confidence=conf / 100.0,
-                        bbox=BoundingBox.from_tuple(
-                            coord=(
-                                (l / self.scale) + ocr_rect.l,
-                                (b / self.scale) + ocr_rect.t,
-                                (r / self.scale) + ocr_rect.l,
-                                (t / self.scale) + ocr_rect.t,
-                            ),
-                            origin=CoordOrigin.TOPLEFT,
-                        ),
+                            t = b + h
+                            r = l + w
+
+                            cell = OcrCell(
+                                id=ix,
+                                text=text,
+                                confidence=conf / 100.0,
+                                bbox=BoundingBox.from_tuple(
+                                    coord=(
+                                        (l / self.scale) + ocr_rect.l,
+                                        (b / self.scale) + ocr_rect.t,
+                                        (r / self.scale) + ocr_rect.l,
+                                        (t / self.scale) + ocr_rect.t,
+                                    ),
+                                    origin=CoordOrigin.TOPLEFT,
+                                ),
+                            )
+                            all_ocr_cells.append(cell)
+
+                    ## Remove OCR cells which overlap with programmatic cells.
+                    filtered_ocr_cells = self.filter_ocr_cells(
+                        all_ocr_cells, page.cells
                     )
-                    all_ocr_cells.append(cell)
 
-            ## Remove OCR cells which overlap with programmatic cells.
-            filtered_ocr_cells = self.filter_ocr_cells(all_ocr_cells, page.cells)
+                    page.cells.extend(filtered_ocr_cells)
 
-            page.cells.extend(filtered_ocr_cells)
+                # DEBUG code:
+                if settings.debug.visualize_ocr:
+                    self.draw_ocr_rects_and_cells(conv_res, page, ocr_rects)
 
-            # DEBUG code:
-            # self.draw_ocr_rects_and_cells(page, ocr_rects)
-
-            yield page
+                yield page

@@ -1,27 +1,33 @@
 import copy
 import logging
 from abc import abstractmethod
-from typing import Iterable, List, Tuple
+from pathlib import Path
+from typing import Iterable, List
 
 import numpy as np
+from docling_core.types.doc import BoundingBox, CoordOrigin
 from PIL import Image, ImageDraw
 from rtree import index
 from scipy.ndimage import find_objects, label
 
-from docling.datamodel.base_models import BoundingBox, CoordOrigin, OcrCell, Page
+from docling.datamodel.base_models import OcrCell, Page
+from docling.datamodel.document import ConversionResult
 from docling.datamodel.pipeline_options import OcrOptions
+from docling.datamodel.settings import settings
+from docling.models.base_model import BasePageModel
 
 _log = logging.getLogger(__name__)
 
 
-class BaseOcrModel:
+class BaseOcrModel(BasePageModel):
     def __init__(self, enabled: bool, options: OcrOptions):
         self.enabled = enabled
         self.options = options
 
     # Computes the optimum amount and coordinates of rectangles to OCR on a given page
-    def get_ocr_rects(self, page: Page) -> Tuple[bool, List[BoundingBox]]:
+    def get_ocr_rects(self, page: Page) -> List[BoundingBox]:
         BITMAP_COVERAGE_TRESHOLD = 0.75
+        assert page.size is not None
 
         def find_ocr_rects(size, bitmap_rects):
             image = Image.new(
@@ -60,11 +66,14 @@ class BaseOcrModel:
 
             return (area_frac, bounding_boxes)  # fraction covered  # boxes
 
-        bitmap_rects = page._backend.get_bitmap_rects()
+        if page._backend is not None:
+            bitmap_rects = page._backend.get_bitmap_rects()
+        else:
+            bitmap_rects = []
         coverage, ocr_rects = find_ocr_rects(page.size, bitmap_rects)
 
         # return full-page rectangle if sufficiently covered with bitmaps
-        if coverage > BITMAP_COVERAGE_TRESHOLD:
+        if coverage > max(BITMAP_COVERAGE_TRESHOLD, self.options.bitmap_area_threshold):
             return [
                 BoundingBox(
                     l=0,
@@ -75,7 +84,15 @@ class BaseOcrModel:
                 )
             ]
         # return individual rectangles if the bitmap coverage is smaller
-        elif coverage < BITMAP_COVERAGE_TRESHOLD:
+        else:  # coverage <= BITMAP_COVERAGE_TRESHOLD:
+
+            # skip OCR if the bitmap area on the page is smaller than the options threshold
+            ocr_rects = [
+                rect
+                for rect in ocr_rects
+                if rect.area() / (page.size.width * page.size.height)
+                > self.options.bitmap_area_threshold
+            ]
             return ocr_rects
 
     # Filters OCR cells by dropping any OCR cell that intersects with an existing programmatic cell.
@@ -100,7 +117,7 @@ class BaseOcrModel:
         ]
         return filtered_ocr_cells
 
-    def draw_ocr_rects_and_cells(self, page, ocr_rects):
+    def draw_ocr_rects_and_cells(self, conv_res, page, ocr_rects, show: bool = False):
         image = copy.deepcopy(page.image)
         draw = ImageDraw.Draw(image, "RGBA")
 
@@ -117,8 +134,21 @@ class BaseOcrModel:
             if isinstance(tc, OcrCell):
                 color = "magenta"
             draw.rectangle([(x0, y0), (x1, y1)], outline=color)
-        image.show()
+
+        if show:
+            image.show()
+        else:
+            out_path: Path = (
+                Path(settings.debug.debug_output_path)
+                / f"debug_{conv_res.input.file.stem}"
+            )
+            out_path.mkdir(parents=True, exist_ok=True)
+
+            out_file = out_path / f"ocr_page_{page.page_no:05}.png"
+            image.save(str(out_file), format="png")
 
     @abstractmethod
-    def __call__(self, page_batch: Iterable[Page]) -> Iterable[Page]:
+    def __call__(
+        self, conv_res: ConversionResult, page_batch: Iterable[Page]
+    ) -> Iterable[Page]:
         pass

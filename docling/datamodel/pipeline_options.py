@@ -1,12 +1,13 @@
-from enum import Enum, auto
+from enum import Enum
+from pathlib import Path
 from typing import List, Literal, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field
 
 
 class TableFormerMode(str, Enum):
-    FAST = auto()
-    ACCURATE = auto()
+    FAST = "fast"
+    ACCURATE = "accurate"
 
 
 class TableStructureOptions(BaseModel):
@@ -21,6 +22,9 @@ class TableStructureOptions(BaseModel):
 
 class OcrOptions(BaseModel):
     kind: str
+    bitmap_area_threshold: float = (
+        0.05  # percentage of the area for a bitmap to processed with OCR
+    )
 
 
 class EasyOcrOptions(OcrOptions):
@@ -58,6 +62,13 @@ class TesseractOcrOptions(OcrOptions):
 
 
 class PipelineOptions(BaseModel):
+    create_legacy_output: bool = (
+        True  # This defautl will be set to False on a future version of docling
+    )
+
+
+class PdfPipelineOptions(PipelineOptions):
+    artifacts_path: Optional[Union[Path, str]] = None
     do_table_structure: bool = True  # True: perform table structure extraction
     do_ocr: bool = True  # True: perform OCR, replace programmatic PDF text
 
@@ -65,3 +76,8 @@ class PipelineOptions(BaseModel):
     ocr_options: Union[EasyOcrOptions, TesseractCliOcrOptions, TesseractOcrOptions] = (
         Field(EasyOcrOptions(), discriminator="kind")
     )
+
+    images_scale: float = 1.0
+    generate_page_images: bool = False
+    generate_picture_images: bool = False
+    generate_table_images: bool = False

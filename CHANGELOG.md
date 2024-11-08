@@ -1,3 +1,108 @@
+## [v2.4.2](https://github.com/DS4SD/docling/releases/tag/v2.4.2) - 2024-11-08
+
+### Fix
+
+* **EasyOcrModel:** Support the use_gpu pipeline parameter in EasyOcrModel. Initialize easyocr ([#282](https://github.com/DS4SD/docling/issues/282)) ([`0eb065e`](https://github.com/DS4SD/docling/commit/0eb065e9b6e4619d4c412ed98bc7408915ca3f95))
+
+## [v2.4.1](https://github.com/DS4SD/docling/releases/tag/v2.4.1) - 2024-11-08
+
+### Fix
+
+* **tesserocr:** Raise Exception if tesserocr has not loaded any languages ([#279](https://github.com/DS4SD/docling/issues/279)) ([`704d792`](https://github.com/DS4SD/docling/commit/704d792a7997c4ca34f9f9045ed4ae02b4f5df47))
+* Dockerfile example copy command ([#234](https://github.com/DS4SD/docling/issues/234)) ([`90836db`](https://github.com/DS4SD/docling/commit/90836db90accf4a66c9c20544c98452840e3a308))
+
+### Documentation
+
+* Update badges & credits ([#248](https://github.com/DS4SD/docling/issues/248)) ([`a84ec27`](https://github.com/DS4SD/docling/commit/a84ec276b0997c4ba9b32e18e911a966124dc3bc))
+* Add coming-soon section ([#235](https://github.com/DS4SD/docling/issues/235)) ([`5ce02c5`](https://github.com/DS4SD/docling/commit/5ce02c5c598a2efa615ad15f0ead8d752d3ad2ea))
+* Add artifacts-path param to CLI ([#233](https://github.com/DS4SD/docling/issues/233)) ([`d5e65ae`](https://github.com/DS4SD/docling/commit/d5e65aedac23d6849c805a0e88dd06f2a285eb18))
+
+## [v2.4.0](https://github.com/DS4SD/docling/releases/tag/v2.4.0) - 2024-11-04
+
+### Feature
+
+* Pdf backend, table mode as options and artifacts path ([#203](https://github.com/DS4SD/docling/issues/203)) ([`40ad987`](https://github.com/DS4SD/docling/commit/40ad98730356218359d6fa9b3deb5bc094d6c699))
+
+### Documentation
+
+* Add explicit artifacts path example ([#224](https://github.com/DS4SD/docling/issues/224)) ([`eeee3b4`](https://github.com/DS4SD/docling/commit/eeee3b4371cb8207a8e7a887acba3fc5afc6de4d))
+* Update custom convert and dockerfile ([#226](https://github.com/DS4SD/docling/issues/226)) ([`5f5fea9`](https://github.com/DS4SD/docling/commit/5f5fea90a963f73a92b551dfefb353fa3e9657d7))
+* Correct spelling of 'individual' ([#219](https://github.com/DS4SD/docling/issues/219)) ([`41acaa9`](https://github.com/DS4SD/docling/commit/41acaa9e2ef4cff8d781f79fb5ae1b31762fa644))
+* Update LlamaIndex docs ([#196](https://github.com/DS4SD/docling/issues/196)) ([`244ca69`](https://github.com/DS4SD/docling/commit/244ca69cfd8a17b449a0a6baaf062b0b5b798bb1))
+
+## [v2.3.1](https://github.com/DS4SD/docling/releases/tag/v2.3.1) - 2024-10-30
+
+### Fix
+
+* Simplify torch dependencies and update pinned docling deps ([#190](https://github.com/DS4SD/docling/issues/190)) ([`eb679cc`](https://github.com/DS4SD/docling/commit/eb679ccbb484fc3ef50dcf00be54ccd488d4a34d))
+* Allow to explicitly initialize the pipeline ([#189](https://github.com/DS4SD/docling/issues/189)) ([`904d24d`](https://github.com/DS4SD/docling/commit/904d24d6005d113c50bde0ad398fdaafbbfb3027))
+
+## [v2.3.0](https://github.com/DS4SD/docling/releases/tag/v2.3.0) - 2024-10-30
+
+### Feature
+
+* Add pipeline timings and toggle visualization, establish debug settings ([#183](https://github.com/DS4SD/docling/issues/183)) ([`2a2c65b`](https://github.com/DS4SD/docling/commit/2a2c65bf4f89a715c27310eaa9cd9db635e0f673))
+
+### Fix
+
+* Fix duplicate title and heading + add e2e tests for html and docx ([#186](https://github.com/DS4SD/docling/issues/186)) ([`f542460`](https://github.com/DS4SD/docling/commit/f542460af3c7676e5f8dee3b6ce729b139560cd6))
+
+## [v2.2.1](https://github.com/DS4SD/docling/releases/tag/v2.2.1) - 2024-10-28
+
+### Fix
+
+* Fix header levels for DOCX & HTML ([#184](https://github.com/DS4SD/docling/issues/184)) ([`b9f5c74`](https://github.com/DS4SD/docling/commit/b9f5c74a7d13827c2b7887ddbf0b4eb43edd0846))
+* Handling of long sequence of unescaped underscore chars in markdown ([#173](https://github.com/DS4SD/docling/issues/173)) ([`94d0729`](https://github.com/DS4SD/docling/commit/94d0729c500b0be8ac4a1cd3025b42048f6e8d5a))
+* HTML backend, fixes for Lists and nested texts ([#180](https://github.com/DS4SD/docling/issues/180)) ([`7d19418`](https://github.com/DS4SD/docling/commit/7d19418b779408c345473af684de6b7f60872b6e))
+* MD Backend, fixes to properly handle trailing inline text and emphasis in headers ([#178](https://github.com/DS4SD/docling/issues/178)) ([`88c1673`](https://github.com/DS4SD/docling/commit/88c16730571afdd3bfb8894f64d41b5e99bc5a5b))
+
+### Documentation
+
+* Update LlamaIndex docs for Docling v2 ([#182](https://github.com/DS4SD/docling/issues/182)) ([`2cece27`](https://github.com/DS4SD/docling/commit/2cece27208c4bce715d20000b845794dfb97843d))
+* Fix batch convert ([#177](https://github.com/DS4SD/docling/issues/177)) ([`189d3c2`](https://github.com/DS4SD/docling/commit/189d3c2d44ec389856f48696eaa78ac9f02f8cde))
+* Add export with embedded images ([#175](https://github.com/DS4SD/docling/issues/175)) ([`8d356aa`](https://github.com/DS4SD/docling/commit/8d356aa24715433d458eff4f5f0937ff5cb9cc69))
+
+## [v2.2.0](https://github.com/DS4SD/docling/releases/tag/v2.2.0) - 2024-10-23
+
+### Feature
+
+* Update to docling-parse v2 without history ([#170](https://github.com/DS4SD/docling/issues/170)) ([`4116819`](https://github.com/DS4SD/docling/commit/4116819b515a0611e8e5bf2bb0e1e39f1096b7bf))
+* Support AsciiDoc and Markdown input format ([#168](https://github.com/DS4SD/docling/issues/168)) ([`3023f18`](https://github.com/DS4SD/docling/commit/3023f18ba0462a224f75ea40953b5605abef6427))
+
+### Fix
+
+* Set valid=false for invalid backends ([#171](https://github.com/DS4SD/docling/issues/171)) ([`3496b48`](https://github.com/DS4SD/docling/commit/3496b4838fd52cb0d74eadf78b27c19f633871b1))
+
+## [v2.1.0](https://github.com/DS4SD/docling/releases/tag/v2.1.0) - 2024-10-18
+
+### Feature
+
+* Add coverage_threshold to skip OCR for small images ([#161](https://github.com/DS4SD/docling/issues/161)) ([`b346faf`](https://github.com/DS4SD/docling/commit/b346faf622190c4895dffdc1ee2365b3f7808cbc))
+
+### Fix
+
+* Fix legacy doc ref ([#162](https://github.com/DS4SD/docling/issues/162)) ([`63bef59`](https://github.com/DS4SD/docling/commit/63bef59d9ed6cfd937aefd36a4ef38a54a10dac5))
+
+### Documentation
+
+* Typo fix ([#155](https://github.com/DS4SD/docling/issues/155)) ([`f799e77`](https://github.com/DS4SD/docling/commit/f799e777c1248559eb2f84bc334e392cd3c98e49))
+* Add graphical band in readme ([#154](https://github.com/DS4SD/docling/issues/154)) ([`034a411`](https://github.com/DS4SD/docling/commit/034a4110573df3ac88fd623970958f02309dd6da))
+* Add use docling ([#150](https://github.com/DS4SD/docling/issues/150)) ([`61c092f`](https://github.com/DS4SD/docling/commit/61c092f445ccde8ed5d7c0f2fa91a3d19a1f7a1e))
+
+## [v2.0.0](https://github.com/DS4SD/docling/releases/tag/v2.0.0) - 2024-10-16
+
+### Feature
+
+* Docling v2 ([#117](https://github.com/DS4SD/docling/issues/117)) ([`7d3be0e`](https://github.com/DS4SD/docling/commit/7d3be0edebb420f5840499aa04e4ab928d33cda2))
+
+### Breaking
+
+* Docling v2 ([#117](https://github.com/DS4SD/docling/issues/117)) ([`7d3be0e`](https://github.com/DS4SD/docling/commit/7d3be0edebb420f5840499aa04e4ab928d33cda2))
+
+### Documentation
+
+* Introduce docs site ([#141](https://github.com/DS4SD/docling/issues/141)) ([`d504432`](https://github.com/DS4SD/docling/commit/d504432c1ee250ea417e8239ff5c16c5bec5a2c7))
+
 ## [v1.20.0](https://github.com/DS4SD/docling/releases/tag/v1.20.0) - 2024-10-11
 
 ### Feature
